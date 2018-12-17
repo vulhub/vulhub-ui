@@ -1,0 +1,7 @@
+.idea
+__pycache__
+*.pyc
+.vscode
+.DS_Store
+db.sqlite3
+/meta/
