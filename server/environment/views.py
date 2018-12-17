@@ -1,8 +1,9 @@
-import os
 import json
 
-from rest_framework import generics, response
+from pathlib import Path
+from rest_framework import generics, response, exceptions
 from django.conf import settings
+from django.http import Http404
 from . import serializers
 
 
@@ -14,22 +15,33 @@ class InitialMixin(object):
         super().initial(request, *args, **kwargs)
 
 
-class EnvironmentList(InitialMixin, generics.GenericAPIView):
+class EnvironmentList(InitialMixin, generics.ListAPIView):
     serializer_class = serializers.EnvironmentSerializer
 
     def get_queryset(self):
         return self.environments
 
-    def get(self, request):
-        queryset = self.filter_queryset(self.get_queryset())
 
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+class EnvironmentDetail(InitialMixin, generics.RetrieveAPIView):
+    serializer_class = serializers.EnvironmentSerializer
 
-        serializer = self.get_serializer(queryset, many=True)
-        return response.Response(serializer.data)
+    def get_queryset(self):
+        return self.environments
 
-    # def list(self, request, *args, **kwargs):
-    #     return self.environments
+    def get_object(self):
+        path = self.kwargs['path']
+        meta = next((meta for meta in self.get_queryset() if path == meta['path']), None)
+
+        if meta is None:
+            raise Http404
+
+        dockerfile_cn = Path(settings.VULHUB['VULHUB_DIR']).joinpath(meta['path'], 'README.zh-cn.md')
+        dockerfile = Path(settings.VULHUB['VULHUB_DIR']).joinpath(meta['path'], 'README.md')
+        if dockerfile_cn.exists():
+            meta['description'] = dockerfile_cn.read_text(encoding='utf-8')
+        elif dockerfile.exists():
+            meta['description'] = dockerfile.read_text(encoding='utf-8')
+        else:
+            raise Http404
+
+        return meta
